@@ -1,1 +1,1 @@
-docker_tailnet_rule: "! -i tailscale0 -m conntrack --ctorigdst {{ bind_address }} -j DROP"
+docker_tailnet_rule: "! -i tailscale0 -m conntrack --ctdir ORIGINAL --ctorigdst {{ bind_address }} -j DROP"

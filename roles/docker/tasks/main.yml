@@ -39,6 +39,16 @@
     state: "{{ 'restarted' if docker_tailnet_unit is changed else 'started' }}"
     daemon_reload: "{{ docker_tailnet_unit is changed }}"
 
+# The first version of the unit inserted its rule straight into DOCKER-USER without
+# --ctdir, which also dropped the containers' replies to tailnet clients.
+- name: Remove the earlier tailnet-only rule
+  ansible.builtin.shell: |
+    while iptables -D DOCKER-USER ! -i tailscale0 -m conntrack --ctorigdst {{ bind_address }} -j DROP 2>/dev/null; do
+      echo removed
+    done
+  register: docker_legacy_rule
+  changed_when: "'removed' in docker_legacy_rule.stdout"
+
 - name: Let users run docker without sudo
   ansible.builtin.user:
     name: "{{ item }}"

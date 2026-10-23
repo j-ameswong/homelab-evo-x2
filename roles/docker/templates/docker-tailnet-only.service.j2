@@ -1,7 +1,9 @@
 # Managed by Ansible.
 # Ports are published on the Tailscale address, but a LAN host could still route
 # packets for it via this machine's LAN IP. Drop anything for that address that
-# did not arrive over tailscale0. --ctorigdst matches the address before Docker's DNAT.
+# did not arrive over tailscale0. --ctorigdst matches the address before Docker's DNAT;
+# --ctdir ORIGINAL keeps the rule off the containers' replies, which share that entry.
+# The rule lives in its own chain, flushed on every start, so edits never leave stale copies.
 [Unit]
 Description=Allow only tailnet traffic to ports published on {{ bind_address }}
 After=docker.service
@@ -10,8 +12,12 @@ BindsTo=docker.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/bin/sh -c 'iptables -C DOCKER-USER {{ docker_tailnet_rule }} 2>/dev/null || iptables -I DOCKER-USER {{ docker_tailnet_rule }}'
-ExecStop=-/usr/sbin/iptables -D DOCKER-USER {{ docker_tailnet_rule }}
+ExecStart=/bin/sh -c '\
+  iptables -N TAILNET-ONLY 2>/dev/null; \
+  iptables -F TAILNET-ONLY && \
+  iptables -A TAILNET-ONLY {{ docker_tailnet_rule }} && \
+  { iptables -C DOCKER-USER -j TAILNET-ONLY 2>/dev/null || iptables -I DOCKER-USER -j TAILNET-ONLY; }'
+ExecStop=-/bin/sh -c 'iptables -D DOCKER-USER -j TAILNET-ONLY; iptables -F TAILNET-ONLY; iptables -X TAILNET-ONLY'
 
 [Install]
 WantedBy=docker.service
