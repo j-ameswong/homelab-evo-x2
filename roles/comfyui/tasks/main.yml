@@ -5,8 +5,17 @@
     mode: "0755"
   loop: >-
     {{ [comfyui_dir ~ '/build']
-       + ['custom_nodes', 'input', 'output', 'user'] | map('regex_replace', '^', comfyui_dir ~ '/data/') | list
        + comfyui_all_model_folders | map('regex_replace', '^', comfyui_models_dir ~ '/') | list }}
+
+# Inputs, outputs and saved workflows hold prompts, so keep them root-only.
+- name: Create ComfyUI data directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0700"
+  loop: >-
+    {{ [comfyui_dir ~ '/data']
+       + ['custom_nodes', 'input', 'output', 'user'] | map('regex_replace', '^', comfyui_dir ~ '/data/') | list }}
 
 - name: Create model directories
   ansible.builtin.file:
@@ -25,6 +34,8 @@
     headers: "{{ {'Authorization': 'Bearer ' ~ hf_token} if hf_token and 'huggingface.co' in item.url else {} }}"
     timeout: 60
     mode: "0644"
+  # Ansible logs module arguments, the token header included, to the host's journal.
+  no_log: "{{ hf_token | length > 0 }}"
   loop: "{{ comfyui_models }}"
   loop_control:
     label: "{{ item.dest }}"
@@ -87,3 +98,18 @@
     that: comfyui_stats.json.devices[0].type != 'cpu'
     fail_msg: "ComfyUI fell back to CPU: {{ comfyui_stats.json.devices }}"
     success_msg: "{{ comfyui_stats.json.devices[0].name }}"
+
+- name: Install the cleanup units
+  ansible.builtin.template:
+    src: comfyui-cleanup.{{ item }}.j2
+    dest: /etc/systemd/system/comfyui-cleanup.{{ item }}
+    mode: "0644"
+  loop: [service, timer]
+  register: comfyui_cleanup_units
+
+- name: Schedule the cleanup of old inputs and outputs
+  ansible.builtin.systemd_service:
+    name: comfyui-cleanup.timer
+    enabled: "{{ comfyui_retention_days | int > 0 }}"
+    state: "{{ 'started' if comfyui_retention_days | int > 0 else 'stopped' }}"
+    daemon_reload: "{{ comfyui_cleanup_units is changed }}"

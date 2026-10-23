@@ -59,6 +59,11 @@ not delete its files from `/srv/models`.
   the Tailscale IPv6 address, so clients that try IPv6 first fall back to IPv4.
   `net.ipv4.ip_nonlocal_bind=1` lets dockerd bind the address at boot before tailscaled
   has brought it up. Neither service has authentication: anyone on the tailnet can use them.
+- **What's kept.** Logs hold model loads and timings, not prompts. llama-swap's request
+  capture is off (`captureBuffer: 0`). ComfyUI saves images without the embedded
+  workflow (`comfyui_embed_metadata`), keeps job history in memory until restart, and a
+  daily timer deletes inputs and outputs older than `comfyui_retention_days` (default 30).
+  `/srv/comfyui/data` is root-only.
 - **Remote access is Tailscale SSH only**; OpenSSH is not running.
 - **Pinned versions** live in role defaults: `llama_swap_image` (dated tags, published
   nightly) and the ComfyUI/PyTorch versions in `roles/comfyui/defaults/main.yml`. The

@@ -14,8 +14,10 @@
 {%   endif %}
 {%   set ns.models = ns.models | combine({m.name: entry}) %}
 {% endfor %}
+{# captureBuffer 0: don't keep request/response bodies, which the unauthenticated API serves. #}
 {{ {
   'healthCheckTimeout': llama_swap_health_check_timeout,
   'logLevel': 'info',
+  'captureBuffer': 0,
   'models': ns.models,
 } | to_nice_yaml(indent=2, width=4096, sort_keys=False) }}

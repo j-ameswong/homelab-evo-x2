@@ -22,7 +22,7 @@ services:
       - seccomp=unconfined
     ports:
       - "{{ bind_address }}:{{ comfyui_port }}:8188"
-    command: {{ (comfyui_data_args + comfyui_args) | to_json }}
+    command: {{ (comfyui_data_args + ([] if comfyui_embed_metadata else ['--disable-metadata']) + comfyui_args) | to_json }}
 {% if comfyui_env %}
     environment: {{ comfyui_env | to_json }}
 {% endif %}

@@ -9,6 +9,10 @@ comfyui_models_dir: "{{ models_root }}/comfyui"
 comfyui_port: 8188
 comfyui_args: []
 comfyui_env: {}
+# Embed the prompt and workflow in saved images, readable by anyone who gets the file.
+comfyui_embed_metadata: false
+# Delete inputs and outputs older than this many days; 0 keeps them forever.
+comfyui_retention_days: 30
 
 # Registered with ComfyUI and created under comfyui_models_dir. Folders used by
 # a comfyui_models dest are added automatically.

@@ -1,0 +1,10 @@
+# Managed by Ansible.
+[Unit]
+Description=Daily deletion of old ComfyUI inputs and outputs
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,7 @@
+# Managed by Ansible.
+[Unit]
+Description=Delete ComfyUI inputs and outputs older than {{ comfyui_retention_days }} days
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/find {{ comfyui_dir }}/data/input {{ comfyui_dir }}/data/output -type f -mmin +{{ comfyui_retention_days | int * 1440 }} -delete

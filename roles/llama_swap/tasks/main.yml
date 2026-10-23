@@ -25,6 +25,8 @@
     headers: "{{ {'Authorization': 'Bearer ' ~ hf_token} if hf_token else {} }}"
     timeout: 60
     mode: "0644"
+  # Ansible logs module arguments, the token header included, to the host's journal.
+  no_log: "{{ hf_token | length > 0 }}"
   loop: "{{ llm_models | subelements('files') }}"
   loop_control:
     label: "{{ item.0.hf_repo }}/{{ item.1.file | default(item.1) }}"
