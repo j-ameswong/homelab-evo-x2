@@ -1,2 +1,6 @@
 /collections/
 *.retry
+
+# ComfyUI workflows name the models they load, so they're private unless listed here.
+/roles/comfyui/files/workflows/*
+!/roles/comfyui/files/workflows/sdxl-t2i.json

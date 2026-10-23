@@ -29,4 +29,6 @@ comfyui_model_folders:
   - vae
 
 comfyui_models: []
+# Single-file custom nodes: [{url, sha256}], saved under data/custom_nodes by URL basename.
+comfyui_custom_nodes: []
 hf_token: ""
