@@ -1,9 +1,4 @@
 # Managed by Ansible.
-# Ports are published on the Tailscale address, but a LAN host could still route
-# packets for it via this machine's LAN IP. Drop anything for that address that
-# did not arrive over tailscale0. --ctorigdst matches the address before Docker's DNAT;
-# --ctdir ORIGINAL keeps the rule off the containers' replies, which share that entry.
-# The rule lives in its own chain, flushed on every start, so edits never leave stale copies.
 [Unit]
 Description=Allow only tailnet traffic to ports published on {{ bind_address }}
 After=docker.service

@@ -21,6 +21,21 @@ llm_models:
     ctx: 32768
     args: --temp 1.0 --top-p 0.95 --top-k 64
 
+  # Dense, so decode speed is bound by memory bandwidth: Q5_K_XL is near Q8 quality at
+  # ~70% of the bytes read per token. Only 16 of its 64 layers keep a KV cache, so a long
+  # context is cheap (~8 GiB at 131072).
+  - name: qwen3.8-27b
+    hf_repo: unsloth/Qwen3.8-27B-GGUF
+    files:
+      - file: Qwen3.8-27B-UD-Q5_K_XL.gguf                  # 19 GiB
+        sha256: 8601193d3d5760c37fb8ce1b43afebc69df5fb24e1fbc5a547c32e2200305276
+      - file: mmproj-F16.gguf                              # vision encoder
+        sha256: cbb841a9ee0636b2ec172f5bb8df2ea8dfeb01e90fe7c6126581d662a0b4e43e
+    ctx: 131072
+    args: >-
+      --mmproj /models/unsloth/Qwen3.8-27B-GGUF/mmproj-F16.gguf
+      --temp 1.0 --top-p 0.95 --top-k 20 --min-p 0.0
+
   # - name: qwen3-coder-30b
   #   hf_repo: unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF
   #   files:
