@@ -46,14 +46,20 @@ not delete its files from `/srv/models`.
   didn't work. Set `llama_swap_smoke_test: false` to skip this.
 - **comfyui**: a locally built image with PyTorch from AMD's gfx1151 wheel index
   (ROCm bundled in the wheels). Models live in `/srv/models/comfyui`; custom nodes, inputs,
-  outputs and user data in `/srv/comfyui/data`.
+  outputs and user data in `/srv/comfyui/data`. Workflows in `roles/comfyui/files/workflows`
+  appear in ComfyUI's Workflows panel. They're copied only when missing, so edits saved
+  there are kept; delete the file on the host to get the repo's version back. Custom nodes
+  (`comfyui_custom_nodes` in `models.yml`) are single files pinned to a commit and a SHA-256;
+  they run as root in the container, so read one before adding or bumping it.
 
 ## Things to know
 
 - **Shared memory.** The CPU, LLMs and ComfyUI all draw from the same 121 GiB. A large LLM
   and a large diffusion model will not both fit. llama-swap unloads idle LLMs after their
   `ttl`; ComfyUI keeps models resident until restarted or told to free memory. Both
-  containers are the OOM killer's preferred targets.
+  containers are the OOM killer's preferred targets. For scale: Qwen-Image 2.1 (int8) takes
+  ~17 GiB, the Qwen-Image-Edit Rapid AIO checkpoint ~47 GiB (ComfyUI widens its fp8 weights
+  to bf16 on this GPU). The **Unload Models** button in ComfyUI's queue panel frees them.
 - **Network exposure.** dockerd binds the published ports to the Tailscale IPv4 address
   only, and the `docker-tailnet-only` unit drops traffic for that address unless it
   arrives on `tailscale0`, since Docker's port rules bypass ufw. The ports are not bound on

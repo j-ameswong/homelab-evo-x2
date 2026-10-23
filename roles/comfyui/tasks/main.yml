@@ -15,7 +15,28 @@
     mode: "0700"
   loop: >-
     {{ [comfyui_dir ~ '/data']
-       + ['custom_nodes', 'input', 'output', 'user'] | map('regex_replace', '^', comfyui_dir ~ '/data/') | list }}
+       + ['custom_nodes', 'input', 'output', 'user', 'user/default', 'user/default/workflows']
+         | map('regex_replace', '^', comfyui_dir ~ '/data/') | list }}
+
+# Copied only when missing, so changes saved from ComfyUI's Workflows panel are kept.
+# Delete the file on the host to get the repo's version back.
+- name: Add the bundled workflows
+  ansible.builtin.copy:
+    src: workflows/
+    dest: "{{ comfyui_dir }}/data/user/default/workflows/"
+    force: false
+    mode: "0600"
+
+- name: Download custom nodes
+  ansible.builtin.get_url:
+    url: "{{ item.url }}"
+    dest: "{{ comfyui_dir }}/data/custom_nodes/{{ item.url | basename }}"
+    checksum: sha256:{{ item.sha256 }}
+    mode: "0644"
+  loop: "{{ comfyui_custom_nodes }}"
+  loop_control:
+    label: "{{ item.url | basename }}"
+  register: comfyui_custom_node_files
 
 - name: Create model directories
   ansible.builtin.file:
@@ -39,6 +60,7 @@
   loop: "{{ comfyui_models }}"
   loop_control:
     label: "{{ item.dest }}"
+  register: comfyui_model_downloads
 
 - name: Write ComfyUI's search-path config
   ansible.builtin.template:
@@ -73,6 +95,27 @@
   community.docker.docker_compose_v2:
     project_src: "{{ comfyui_dir }}"
     state: present
+
+# Custom nodes are bind-mounted, so compose sees no change and leaves the container running.
+- name: Restart ComfyUI to load changed custom nodes
+  community.docker.docker_compose_v2:
+    project_src: "{{ comfyui_dir }}"
+    state: restarted
+  when: comfyui_custom_node_files is changed
+
+# Runs in the container for its torch and safetensors; redone whenever the source changes.
+- name: Fuse the MLP weights of Qwen-Image 2.1 models
+  ansible.builtin.command:
+    argv: [docker, exec, -i, comfyui, python, -I, -, "/data/models/{{ item.item.dest }}", "/data/models/{{ fused }}"]
+    stdin: "{{ lookup('ansible.builtin.file', 'scripts/fuse_qwen_image21_mlp.py') }}"
+    creates: "{{ omit if item is changed else comfyui_models_dir ~ '/' ~ fused }}"
+  vars:
+    fused: "{{ item.item.dest | regex_replace('\\.safetensors$', '-fused.safetensors') }}"
+  loop: >-
+    {{ comfyui_model_downloads.results
+       | selectattr('item.fuse_qwen_image21_mlp', 'defined') | selectattr('item.fuse_qwen_image21_mlp') }}
+  loop_control:
+    label: "{{ item.item.dest }}"
 
 - name: Remove superseded ComfyUI images
   ansible.builtin.shell: >-
