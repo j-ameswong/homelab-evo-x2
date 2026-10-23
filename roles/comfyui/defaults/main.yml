@@ -1,0 +1,28 @@
+comfyui_version: v0.42.4
+comfyui_torch_index: https://repo.amd.com/rocm/whl/gfx1151/
+comfyui_torch_version: 2.11.0+rocm7.13.0
+comfyui_torchvision_version: 0.26.0+rocm7.13.0
+comfyui_torchaudio_version: 2.11.0+rocm7.13.0
+
+comfyui_dir: /srv/comfyui
+comfyui_models_dir: "{{ models_root }}/comfyui"
+comfyui_port: 8188
+comfyui_args: []
+comfyui_env: {}
+
+# Registered with ComfyUI and created under comfyui_models_dir. Folders used by
+# a comfyui_models dest are added automatically.
+comfyui_model_folders:
+  - checkpoints
+  - clip
+  - clip_vision
+  - controlnet
+  - diffusion_models
+  - embeddings
+  - loras
+  - text_encoders
+  - upscale_models
+  - vae
+
+comfyui_models: []
+hf_token: ""

@@ -1,0 +1,3 @@
+skip_list:
+  # Inventory vars like llm_models, hf_token and bind_address are shared across roles.
+  - var-naming[no-role-prefix]

@@ -1,0 +1,78 @@
+- name: Create llama-swap directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ llama_swap_dir }}/config"
+    - "{{ llama_swap_models_dir }}"
+
+# Entries in files are either a filename or {file, sha256}.
+- name: Create model directories
+  ansible.builtin.file:
+    path: "{{ llama_swap_models_dir }}/{{ item.0.hf_repo }}/{{ (item.1.file | default(item.1)) | dirname }}"
+    state: directory
+    mode: "0755"
+  loop: "{{ llm_models | subelements('files') }}"
+  loop_control:
+    label: "{{ item.0.hf_repo }}/{{ item.1.file | default(item.1) }}"
+
+- name: Download models from Hugging Face
+  ansible.builtin.get_url:
+    url: https://huggingface.co/{{ item.0.hf_repo }}/resolve/main/{{ item.1.file | default(item.1) }}
+    dest: "{{ llama_swap_models_dir }}/{{ item.0.hf_repo }}/{{ item.1.file | default(item.1) }}"
+    checksum: "{{ ('sha256:' ~ item.1.sha256) if item.1.sha256 is defined else omit }}"
+    headers: "{{ {'Authorization': 'Bearer ' ~ hf_token} if hf_token else {} }}"
+    timeout: 60
+    mode: "0644"
+  loop: "{{ llm_models | subelements('files') }}"
+  loop_control:
+    label: "{{ item.0.hf_repo }}/{{ item.1.file | default(item.1) }}"
+
+- name: Write the llama-swap config
+  ansible.builtin.template:
+    src: config.yaml.j2
+    dest: "{{ llama_swap_dir }}/config/config.yaml"
+    mode: "0644"
+  register: llama_swap_config
+
+- name: Write the compose file
+  ansible.builtin.template:
+    src: compose.yaml.j2
+    dest: "{{ llama_swap_dir }}/compose.yaml"
+    mode: "0644"
+
+- name: Start llama-swap
+  community.docker.docker_compose_v2:
+    project_src: "{{ llama_swap_dir }}"
+    state: present
+
+- name: Wait for the llama-swap API
+  ansible.builtin.uri:
+    url: http://{{ bind_address }}:{{ llama_swap_port }}/v1/models
+  register: llama_swap_models
+  until: llama_swap_models.status == 200
+  retries: 30
+  delay: 2
+
+- name: List the GPUs llama-server can use
+  ansible.builtin.command: docker exec llama-swap llama-server --list-devices
+  register: llama_swap_devices
+  changed_when: false
+
+- name: Check llama-server sees the GPU through Vulkan
+  ansible.builtin.assert:
+    that: "'Vulkan' in llama_swap_devices.stdout"
+    fail_msg: "{{ llama_swap_devices.stdout }}"
+
+- name: Load the first model and generate one token
+  ansible.builtin.uri:
+    url: http://{{ bind_address }}:{{ llama_swap_port }}/v1/chat/completions
+    method: POST
+    body_format: json
+    body:
+      model: "{{ llm_models[0].name }}"
+      messages: [{ role: user, content: Hi }]
+      max_tokens: 1
+    timeout: "{{ llama_swap_health_check_timeout }}"
+  when: llama_swap_smoke_test and llm_models | length > 0

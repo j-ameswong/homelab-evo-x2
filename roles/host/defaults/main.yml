@@ -1,0 +1,7 @@
+gpu_gtt_gib: 112
+headless: true
+power_profile: ""
+host_packages:
+  - nvtop
+  - rocminfo
+  - vulkan-tools

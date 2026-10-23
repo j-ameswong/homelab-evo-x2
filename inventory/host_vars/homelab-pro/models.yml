@@ -1,0 +1,44 @@
+# LLMs served by llama-swap (OpenAI-compatible API at http://homelab-pro:8080/v1).
+# llama-swap loads a model on first request and runs one at a time.
+#
+#   name     model id that clients request
+#   hf_repo  Hugging Face repo; files land in /srv/models/llm/<hf_repo>/
+#   files    files to download, each a filename or {file, sha256}; for split GGUFs
+#            list every part, the first is passed to --model
+#   ctx      context size (default: llama_server_default_ctx)
+#   args     extra llama-server arguments
+#   ttl      idle seconds before unloading (default: llama_swap_default_ttl; 0 = never)
+#   aliases  extra model ids that resolve to this model
+#
+# Hugging Face's SHA-256 for a file is the x-linked-etag header of its resolve URL:
+#   curl -sI https://huggingface.co/<repo>/resolve/main/<file> | grep -i x-linked-etag
+llm_models:
+  - name: gemma-4-12b
+    hf_repo: unsloth/gemma-4-12b-it-GGUF
+    files:
+      - file: gemma-4-12b-it-Q4_K_M.gguf
+        sha256: 0a270ec9fe6b34f4a0d33992b6135117b484ebc4766ab76b51d4ae8c457e4c42
+    ctx: 32768
+    args: --temp 1.0 --top-p 0.95 --top-k 64
+
+  # - name: qwen3-coder-30b
+  #   hf_repo: unsloth/Qwen3-Coder-30B-A3B-Instruct-GGUF
+  #   files:
+  #     - file: Qwen3-Coder-30B-A3B-Instruct-Q4_K_M.gguf   # 17 GiB
+  #       sha256: fadc3e5f8d42bf7e894a785b05082e47daee4df26680389817e2093056f088ad
+  #   ctx: 65536
+
+  # - name: gpt-oss-120b
+  #   hf_repo: ggml-org/gpt-oss-120b-GGUF
+  #   files:
+  #     - file: gpt-oss-120b-MXFP4.gguf                    # 59 GiB
+  #       sha256: 582bd40f6886200101f4c4ed9f25f3fe80cc14c86e9e2b37746cd8904a0c622d
+  #   ctx: 131072
+
+# ComfyUI models, downloaded into /srv/models/comfyui/<dest>.
+# dest starts with the ComfyUI folder: checkpoints/, loras/, vae/, diffusion_models/, ...
+# sha256 is optional.
+comfyui_models:
+  - url: https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors
+    dest: checkpoints/sd_xl_base_1.0.safetensors
+    sha256: 31e35c80fc4829d14f90153f4c74cd59c90b779f6afe05a74cd6120b893f7e5b

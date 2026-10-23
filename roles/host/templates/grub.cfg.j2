@@ -1,0 +1,7 @@
+# Managed by Ansible.
+# Show the menu briefly so recovery doesn't depend on a well-timed Esc.
+GRUB_TIMEOUT_STYLE=menu
+GRUB_TIMEOUT=3
+
+# GTT limit for the iGPU, in 4 KiB pages ({{ gpu_gtt_gib }} GiB).
+GRUB_CMDLINE_LINUX_DEFAULT="$GRUB_CMDLINE_LINUX_DEFAULT ttm.pages_limit={{ host_gtt_pages }} ttm.page_pool_size={{ host_gtt_pages }}"

@@ -1,0 +1,213 @@
+# Every step checks the machine's actual state rather than relying on handlers,
+# so a run that fails partway is finished correctly by the next one.
+
+# Containers ship their own ROCm userspace, so the host only needs the kernel's
+# in-box amdgpu. AMD's DKMS build targets 24.04 and breaks on kernel upgrades.
+- name: Remove AMD's out-of-tree amdgpu driver
+  ansible.builtin.apt:
+    name: [amdgpu-dkms, amdgpu-dkms-firmware]
+    state: absent
+    purge: true
+    lock_timeout: 600
+
+- name: Remove AMD's apt repository
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/apt/sources.list.d/amdgpu.list
+    - /etc/apt/keyrings/rocm.gpg
+
+# DKMS moved the in-box module aside on install and should restore it on removal.
+- name: Find the amdgpu module on disk
+  ansible.builtin.command: modinfo -n amdgpu
+  register: host_amdgpu_module
+  changed_when: false
+  failed_when: false
+
+# The apt module has no reinstall option.
+- name: Restore the in-box amdgpu module
+  ansible.builtin.command: apt-get  # noqa: command-instead-of-module install --reinstall -y linux-modules-{{ ansible_facts.kernel }}
+  when: "'/kernel/drivers/' not in host_amdgpu_module.stdout"
+  changed_when: true
+
+- name: Find the amdgpu module on disk again
+  ansible.builtin.command: modinfo -n amdgpu
+  register: host_amdgpu_module
+  changed_when: false
+
+- name: Check the in-box module is in place before rebooting
+  ansible.builtin.assert:
+    that: "'/kernel/drivers/' in host_amdgpu_module.stdout"
+    fail_msg: "amdgpu resolves to {{ host_amdgpu_module.stdout }}; not rebooting without the in-box driver"
+
+- name: Check the initramfs for the DKMS driver or its firmware
+  ansible.builtin.shell: >-
+    set -o pipefail;
+    lsinitramfs /boot/initrd.img-{{ ansible_facts.kernel }} | grep -qE 'updates/(dkms/amdgpu|amdgpu/)'
+  args:
+    executable: /bin/bash
+  register: host_initramfs_dkms
+  changed_when: false
+  failed_when: host_initramfs_dkms.rc > 1
+
+- name: Rebuild the initramfs
+  ansible.builtin.command: update-initramfs -u -k all
+  when: host_initramfs_dkms.rc == 0
+  changed_when: true
+
+- name: Install host tools
+  ansible.builtin.apt:
+    name: "{{ host_packages }}"
+    update_cache: true
+    lock_timeout: 600
+
+- name: Configure GRUB (GTT limit, boot menu timeout)
+  ansible.builtin.template:
+    src: grub.cfg.j2
+    dest: /etc/default/grub.d/90-evo-x2.cfg
+    mode: "0644"
+  register: host_grub_dropin
+
+- name: Check grub.cfg has the GTT limit
+  ansible.builtin.command: grep -qF 'ttm.pages_limit={{ host_gtt_pages }}' /boot/grub/grub.cfg
+  register: host_grub_cfg
+  changed_when: false
+  failed_when: host_grub_cfg.rc > 1
+
+- name: Regenerate grub.cfg
+  ansible.builtin.command: update-grub
+  when: host_grub_dropin is changed or host_grub_cfg.rc == 1
+  changed_when: true
+
+# Lets dockerd bind the Tailscale address at boot before tailscaled has brought it up.
+- name: Allow binding addresses that are not up yet
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_nonlocal_bind
+    value: "1"
+    sysctl_file: /etc/sysctl.d/90-nonlocal-bind.conf
+
+# GTT pages are not charged to any process, so the OOM killer can pick tailscaled,
+# which is the only way into this machine.
+- name: Create the tailscaled drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/tailscaled.service.d
+    state: directory
+    mode: "0755"
+
+- name: Exempt tailscaled from the OOM killer
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/tailscaled.service.d/oom.conf
+    content: |
+      [Service]
+      OOMScoreAdjust=-1000
+    mode: "0644"
+  register: host_tailscaled_dropin
+
+- name: Reload systemd units
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when: host_tailscaled_dropin is changed  # noqa: no-handler (handlers are lost if a later task fails)
+
+# Restarting tailscaled would cut this SSH session, so set the running process too.
+- name: Apply the OOM exemption to the running tailscaled
+  ansible.builtin.shell: |
+    pid=$(systemctl show -p MainPID --value tailscaled)
+    if [ "$(cat /proc/$pid/oom_score_adj)" != -1000 ]; then
+      echo -1000 > /proc/$pid/oom_score_adj && echo changed
+    fi
+  register: host_tailscaled_oom
+  changed_when: "'changed' in host_tailscaled_oom.stdout"
+
+- name: Read the default boot target
+  ansible.builtin.command: systemctl get-default
+  register: host_default_target
+  changed_when: false
+
+- name: Set the default boot target
+  ansible.builtin.command: systemctl set-default {{ host_wanted_target }}
+  when: host_default_target.stdout != host_wanted_target
+  changed_when: true
+
+# The unit is only WantedBy graphical.target, so a headless boot would not start it.
+- name: Start power-profiles-daemon in multi-user boots
+  ansible.builtin.file:
+    src: /usr/lib/systemd/system/power-profiles-daemon.service
+    dest: /etc/systemd/system/multi-user.target.wants/power-profiles-daemon.service
+    state: link
+  when: power_profile | length > 0
+
+- name: Read the power profile
+  ansible.builtin.command: powerprofilesctl get
+  register: host_power_profile
+  changed_when: false
+  when: power_profile | length > 0
+
+- name: Set the power profile
+  ansible.builtin.command: powerprofilesctl set {{ power_profile }}
+  when:
+    - power_profile | length > 0
+    - host_power_profile.stdout != power_profile
+  changed_when: true
+
+- name: Read the running kernel command line
+  ansible.builtin.command: cat /proc/cmdline
+  register: host_cmdline
+  changed_when: false
+
+# amdkcl is only loaded alongside the DKMS driver.
+- name: Check whether the DKMS driver is still loaded
+  ansible.builtin.stat:
+    path: /sys/module/amdkcl
+  register: host_amdkcl
+
+# service_facts does not report targets.
+- name: Check whether the desktop is running
+  ansible.builtin.command: systemctl is-active graphical.target  # noqa: command-instead-of-module
+  register: host_graphical
+  changed_when: false
+  failed_when: false
+
+- name: Reboot into the in-box driver and new kernel parameters
+  ansible.builtin.reboot:
+    reboot_timeout: 900
+  when: >-
+    ('ttm.pages_limit=' ~ host_gtt_pages) not in host_cmdline.stdout.split()
+    or host_amdkcl.stat.exists
+    or (headless and host_graphical.stdout == 'active')
+
+- name: Read the kernel command line after boot
+  ansible.builtin.command: cat /proc/cmdline
+  register: host_cmdline
+  changed_when: false
+
+- name: Check whether amdgpu is loaded
+  ansible.builtin.stat:
+    path: /sys/module/amdgpu
+  register: host_amdgpu_loaded
+
+- name: Check whether amdkcl is loaded
+  ansible.builtin.stat:
+    path: /sys/module/amdkcl
+  register: host_amdkcl
+
+- name: Check the in-box driver is loaded with the new kernel parameters
+  ansible.builtin.assert:
+    that:
+      - host_amdgpu_loaded.stat.exists
+      - not host_amdkcl.stat.exists
+      - ('ttm.pages_limit=' ~ host_gtt_pages) in host_cmdline.stdout.split()
+    fail_msg: >-
+      amdgpu loaded: {{ host_amdgpu_loaded.stat.exists }},
+      DKMS amdkcl loaded: {{ host_amdkcl.stat.exists }},
+      cmdline: {{ host_cmdline.stdout }}
+
+- name: Read the GPU's GTT size
+  ansible.builtin.shell: cat /sys/class/drm/card*/device/mem_info_gtt_total
+  register: host_gtt_total
+  changed_when: false
+
+- name: Check the GTT limit took effect
+  ansible.builtin.assert:
+    that: host_gtt_total.stdout | int >= (gpu_gtt_gib - 1) * 1073741824
+    fail_msg: "GTT is {{ (host_gtt_total.stdout | int / 1073741824) | round(1) }} GiB, wanted {{ gpu_gtt_gib }}"

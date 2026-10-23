@@ -1,0 +1,25 @@
+# Managed by Ansible.
+services:
+  llama-swap:
+    image: {{ llama_swap_image }}
+    container_name: llama-swap
+    restart: unless-stopped
+    # Changes with the config, so compose recreates the container to load it.
+    labels:
+      evo-x2.config-checksum: "{{ llama_swap_config.checksum }}"
+    devices:
+      - /dev/dri:/dev/dri
+    ports:
+      - "{{ bind_address }}:{{ llama_swap_port }}:8080"
+    environment:
+      LLAMA_SWAP_WATCH_CONFIG: "false"
+    volumes:
+      - ./config:/etc/llama-swap/config:ro
+      - {{ llama_swap_models_dir }}:/models:ro
+    # Prefer killing a model server over host processes when memory runs out.
+    oom_score_adj: 500
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"

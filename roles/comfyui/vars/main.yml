@@ -1,0 +1,16 @@
+comfyui_all_model_folders: >-
+  {{ (comfyui_model_folders
+      + comfyui_models | map(attribute='dest') | map('split', '/') | map('first') | list)
+     | unique }}
+
+# Point ComfyUI at /data instead of mounting over /opt/comfyui, so the image's own
+# models/configs and built-in custom nodes stay visible.
+comfyui_data_args:
+  - --extra-model-paths-config
+  - /data/extra_model_paths.yaml
+  - --input-directory
+  - /data/input
+  - --output-directory
+  - /data/output
+  - --user-directory
+  - /data/user

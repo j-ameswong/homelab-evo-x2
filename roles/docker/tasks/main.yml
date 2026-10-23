@@ -1,0 +1,47 @@
+- name: Add Docker's apt repository
+  ansible.builtin.deb822_repository:
+    name: docker
+    types: deb
+    uris: https://download.docker.com/linux/ubuntu
+    suites: "{{ ansible_facts.distribution_release }}"
+    components: stable
+    architectures: amd64
+    signed_by: https://download.docker.com/linux/ubuntu/gpg
+
+- name: Install Docker Engine and the compose plugin
+  ansible.builtin.apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-buildx-plugin
+      - docker-compose-plugin
+    update_cache: true
+    lock_timeout: 600
+
+- name: Start Docker on boot
+  ansible.builtin.service:
+    name: docker
+    state: started
+    enabled: true
+
+- name: Install the tailnet-only firewall unit
+  ansible.builtin.template:
+    src: docker-tailnet-only.service.j2
+    dest: /etc/systemd/system/docker-tailnet-only.service
+    mode: "0644"
+  register: docker_tailnet_unit
+
+- name: Enable the tailnet-only firewall rule
+  ansible.builtin.systemd_service:
+    name: docker-tailnet-only
+    enabled: true
+    state: "{{ 'restarted' if docker_tailnet_unit is changed else 'started' }}"
+    daemon_reload: "{{ docker_tailnet_unit is changed }}"
+
+- name: Let users run docker without sudo
+  ansible.builtin.user:
+    name: "{{ item }}"
+    groups: docker
+    append: true
+  loop: "{{ docker_users }}"

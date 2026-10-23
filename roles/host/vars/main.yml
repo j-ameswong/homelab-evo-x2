@@ -1,0 +1,2 @@
+host_gtt_pages: "{{ gpu_gtt_gib * 262144 }}"
+host_wanted_target: "{{ 'multi-user.target' if headless else 'graphical.target' }}"

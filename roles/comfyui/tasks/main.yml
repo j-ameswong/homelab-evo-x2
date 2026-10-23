@@ -1,0 +1,89 @@
+- name: Create ComfyUI directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop: >-
+    {{ [comfyui_dir ~ '/build']
+       + ['custom_nodes', 'input', 'output', 'user'] | map('regex_replace', '^', comfyui_dir ~ '/data/') | list
+       + comfyui_all_model_folders | map('regex_replace', '^', comfyui_models_dir ~ '/') | list }}
+
+- name: Create model directories
+  ansible.builtin.file:
+    path: "{{ comfyui_models_dir }}/{{ item.dest | dirname }}"
+    state: directory
+    mode: "0755"
+  loop: "{{ comfyui_models }}"
+  loop_control:
+    label: "{{ item.dest }}"
+
+- name: Download models
+  ansible.builtin.get_url:
+    url: "{{ item.url }}"
+    dest: "{{ comfyui_models_dir }}/{{ item.dest }}"
+    checksum: "{{ ('sha256:' ~ item.sha256) if item.sha256 is defined else omit }}"
+    headers: "{{ {'Authorization': 'Bearer ' ~ hf_token} if hf_token and 'huggingface.co' in item.url else {} }}"
+    timeout: 60
+    mode: "0644"
+  loop: "{{ comfyui_models }}"
+  loop_control:
+    label: "{{ item.dest }}"
+
+- name: Write ComfyUI's search-path config
+  ansible.builtin.template:
+    src: extra_model_paths.yaml.j2
+    dest: "{{ comfyui_dir }}/extra_model_paths.yaml"
+    mode: "0644"
+  register: comfyui_paths_config
+
+- name: Copy the image build context
+  ansible.builtin.copy:
+    src: Dockerfile
+    dest: "{{ comfyui_dir }}/build/Dockerfile"
+    mode: "0644"
+  register: comfyui_dockerfile
+
+# The tag changes with the Dockerfile or any pinned version, so compose builds the
+# new image because it is missing; no rebuild flag to lose if a run fails.
+- name: Derive the image tag
+  ansible.builtin.set_fact:
+    comfyui_image: >-
+      local/comfyui:{{ comfyui_version }}-{{
+        (comfyui_dockerfile.checksum ~ comfyui_torch_index ~ comfyui_torch_version
+         ~ comfyui_torchvision_version ~ comfyui_torchaudio_version) | hash('sha1') | truncate(12, true, '', 0) }}
+
+- name: Write the compose file
+  ansible.builtin.template:
+    src: compose.yaml.j2
+    dest: "{{ comfyui_dir }}/compose.yaml"
+    mode: "0644"
+
+- name: Build and start ComfyUI
+  community.docker.docker_compose_v2:
+    project_src: "{{ comfyui_dir }}"
+    state: present
+
+- name: Remove superseded ComfyUI images
+  ansible.builtin.shell: >-
+    set -o pipefail;
+    docker images --format '{% raw %}{{.Repository}}:{{.Tag}}{% endraw %}' local/comfyui
+    | { grep -vxF '{{ comfyui_image }}' || true; }
+    | xargs -r docker image rm
+  args:
+    executable: /bin/bash
+  register: comfyui_prune
+  changed_when: comfyui_prune.stdout | length > 0
+
+- name: Wait for ComfyUI
+  ansible.builtin.uri:
+    url: http://{{ bind_address }}:{{ comfyui_port }}/system_stats
+  register: comfyui_stats
+  until: comfyui_stats.status == 200
+  retries: 60
+  delay: 2
+
+- name: Check ComfyUI sees the GPU
+  ansible.builtin.assert:
+    that: comfyui_stats.json.devices[0].type != 'cpu'
+    fail_msg: "ComfyUI fell back to CPU: {{ comfyui_stats.json.devices }}"
+    success_msg: "{{ comfyui_stats.json.devices[0].name }}"

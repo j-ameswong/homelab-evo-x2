@@ -1,0 +1,21 @@
+# Managed by Ansible. Edit inventory/host_vars/homelab-pro/models.yml instead.
+{% set ns = namespace(models={}) %}
+{% for m in llm_models %}
+{%   set cmd = [
+       'llama-server --host 127.0.0.1 --port ${PORT}',
+       '--model /models/' ~ m.hf_repo ~ '/' ~ (m.files[0].file | default(m.files[0])),
+       '--ctx-size ' ~ (m.ctx | default(llama_server_default_ctx)),
+       llama_server_default_args,
+       m.args | default(''),
+     ] | select | join(' ') %}
+{%   set entry = {'cmd': cmd, 'ttl': m.ttl | default(llama_swap_default_ttl)} %}
+{%   if m.aliases is defined %}
+{%     set entry = entry | combine({'aliases': m.aliases}) %}
+{%   endif %}
+{%   set ns.models = ns.models | combine({m.name: entry}) %}
+{% endfor %}
+{{ {
+  'healthCheckTimeout': llama_swap_health_check_timeout,
+  'logLevel': 'info',
+  'models': ns.models,
+} | to_nice_yaml(indent=2, width=4096, sort_keys=False) }}

@@ -1,0 +1,15 @@
+# Published ports bind only to the Tailscale address. Docker's port rules bypass
+# ufw, so binding 0.0.0.0 would expose the services to the LAN.
+bind_address: "{{ ansible_facts.tailscale0.ipv4.address }}"
+
+models_root: /srv/models
+
+# Upper bound on system RAM the GPU may map (GTT). The BIOS carve-out stays at 2 GiB.
+gpu_gtt_gib: 112
+
+headless: true
+power_profile: performance
+docker_users: [contessa]
+
+# Only needed for gated Hugging Face repos.
+hf_token: "{{ lookup('ansible.builtin.env', 'HF_TOKEN') }}"

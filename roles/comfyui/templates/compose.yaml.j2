@@ -1,0 +1,42 @@
+# Managed by Ansible.
+services:
+  comfyui:
+    image: {{ comfyui_image }}
+    build:
+      context: ./build
+      args:
+        TORCH_INDEX: {{ comfyui_torch_index }}
+        TORCH_VERSION: {{ comfyui_torch_version }}
+        TORCHVISION_VERSION: {{ comfyui_torchvision_version }}
+        TORCHAUDIO_VERSION: {{ comfyui_torchaudio_version }}
+        COMFYUI_VERSION: {{ comfyui_version }}
+    container_name: comfyui
+    restart: unless-stopped
+    # Changes with the search-path config, so compose recreates the container to load it.
+    labels:
+      evo-x2.paths-checksum: "{{ comfyui_paths_config.checksum }}"
+    devices:
+      - /dev/kfd:/dev/kfd
+      - /dev/dri:/dev/dri
+    security_opt:
+      - seccomp=unconfined
+    ports:
+      - "{{ bind_address }}:{{ comfyui_port }}:8188"
+    command: {{ (comfyui_data_args + comfyui_args) | to_json }}
+{% if comfyui_env %}
+    environment: {{ comfyui_env | to_json }}
+{% endif %}
+    volumes:
+      - ./extra_model_paths.yaml:/data/extra_model_paths.yaml:ro
+      - {{ comfyui_models_dir }}:/data/models
+      - ./data/custom_nodes:/data/custom_nodes
+      - ./data/input:/data/input
+      - ./data/output:/data/output
+      - ./data/user:/data/user
+    # Prefer killing ComfyUI over host processes when memory runs out.
+    oom_score_adj: 500
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"

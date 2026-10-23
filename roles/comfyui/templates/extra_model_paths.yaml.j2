@@ -1,0 +1,9 @@
+# Managed by Ansible. is_default makes these the first search path and the
+# download target, ahead of the folders inside the image.
+evo-x2:
+  base_path: /data
+  is_default: true
+  custom_nodes: custom_nodes
+{% for folder in comfyui_all_model_folders %}
+  {{ folder }}: models/{{ folder }}
+{% endfor %}

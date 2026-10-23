@@ -1,0 +1,16 @@
+# The unified image bundles llama-swap with llama-server built for Vulkan (RADV).
+llama_swap_image: ghcr.io/mostlygeek/llama-swap:unified-vulkan-2026-10-21
+llama_swap_dir: /srv/llama-swap
+llama_swap_models_dir: "{{ models_root }}/llm"
+llama_swap_port: 8080
+llama_swap_health_check_timeout: 600
+llama_swap_default_ttl: 900
+# Load the first model and generate one token at the end of every run.
+llama_swap_smoke_test: true
+
+llama_server_default_ctx: 16384
+# The default --load-mode auto already skips mmap on this iGPU, and --jinja is on by default.
+llama_server_default_args: --n-gpu-layers all
+
+llm_models: []
+hf_token: ""
