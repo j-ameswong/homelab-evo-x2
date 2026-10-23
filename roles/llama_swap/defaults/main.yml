@@ -5,7 +5,7 @@ llama_swap_models_dir: "{{ models_root }}/llm"
 llama_swap_port: 8080
 llama_swap_health_check_timeout: 600
 llama_swap_default_ttl: 900
-# Load the first model and generate one token at the end of every run.
+# Load each model and generate one token at the end of every run.
 llama_swap_smoke_test: true
 
 llama_server_default_ctx: 16384

@@ -67,14 +67,29 @@
     that: "'Vulkan' in llama_swap_devices.stdout"
     fail_msg: "{{ llama_swap_devices.stdout }}"
 
-- name: Load the first model and generate one token
+# llama-swap runs one model at a time, so each request unloads the previous model.
+# Errors are collected so one broken model doesn't hide problems with the rest.
+- name: Load each model and generate one token
   ansible.builtin.uri:
     url: http://{{ bind_address }}:{{ llama_swap_port }}/v1/chat/completions
     method: POST
     body_format: json
     body:
-      model: "{{ llm_models[0].name }}"
+      model: "{{ item.name }}"
       messages: [{ role: user, content: Hi }]
       max_tokens: 1
     timeout: "{{ llama_swap_health_check_timeout }}"
-  when: llama_swap_smoke_test and llm_models | length > 0
+  loop: "{{ llm_models }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: llama_swap_smoke
+  ignore_errors: true
+  when: llama_swap_smoke_test
+
+- name: Check every model generated a token
+  ansible.builtin.assert:
+    that: llama_swap_smoke.results | select('failed') | list | length == 0
+    fail_msg: >-
+      {{ llama_swap_smoke.results | select('failed') | map(attribute='item.name') | join(', ') }}
+      failed to load or generate; see the errors above
+  when: llama_swap_smoke_test
