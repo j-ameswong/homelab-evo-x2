@@ -19,11 +19,11 @@ ansible-playbook site.yml -K          # -K prompts for the sudo password
 ```
 
 Run one part with `--tags host|docker|llama_swap|comfyui`. For gated Hugging Face repos, set
-`HF_TOKEN` on the machine you run Ansible from; it is read there and sent as a header.
+`HF_TOKEN` on the machine you run Ansible from.
 
 ## Adding models
 
-The model list is kept out of git. On a fresh clone, start from the example:
+On a fresh clone, start from the example:
 
 ```sh
 cp inventory/models.example.yml inventory/host_vars/homelab-pro/models.yml
@@ -49,9 +49,4 @@ not delete its files from `/srv/models`.
 - **comfyui**: a locally built image with PyTorch from AMD's gfx1151 wheel index
   (ROCm bundled in the wheels). Models live in `/srv/models/comfyui`; custom nodes, inputs,
   outputs and user data in `/srv/comfyui/data`. Workflows in `roles/comfyui/files/workflows`
-  appear in ComfyUI's Workflows panel. Since a workflow names the models it loads, only those
-  allowed in `.gitignore` are committed; the rest stay local. They're copied only when
-  missing, so edits saved there are kept; delete the file on the host to get the repo's
-  version back. Custom nodes (`comfyui_custom_nodes` in `models.yml`) are single files
-  pinned to a commit and a SHA-256; they run as root in the container, so read one before
-  adding or bumping it.
+  appear in ComfyUI's Workflows panel.
