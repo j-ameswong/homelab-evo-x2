@@ -1,6 +1,9 @@
 /collections/
 *.retry
 
+# Private model list; inventory/models.example.yml is the committed template.
+/inventory/host_vars/homelab-pro/models.yml
+
 # ComfyUI workflows name the models they load, so they're private unless listed here.
 /roles/comfyui/files/workflows/*
 !/roles/comfyui/files/workflows/sdxl-t2i.json

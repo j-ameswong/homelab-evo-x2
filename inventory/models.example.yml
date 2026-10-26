@@ -1,0 +1,76 @@
+# Example model list. Copy it to inventory/host_vars/homelab-pro/models.yml, which is
+# gitignored, and edit that copy. It lives outside host_vars because Ansible loads every
+# .yml file in a host's directory, and this one would be applied alongside the real list.
+
+# LLMs served by llama-swap (OpenAI-compatible API at http://homelab-pro:8080/v1).
+# llama-swap loads a model on first request and runs one at a time, unless llm_groups
+# (below) lets it share memory with others.
+#
+#   name     model id that clients request
+#   hf_repo  Hugging Face repo; files land in /srv/models/llm/<hf_repo>/
+#   files    files to download, each a filename or {file, sha256}; for split GGUFs
+#            list every part, the first is passed to --model
+#   ctx      context size (default: llama_server_default_ctx)
+#   args     extra llama-server arguments
+#   ttl      idle seconds before unloading (default: llama_swap_default_ttl; 0 = never)
+#   aliases  extra model ids that resolve to this model
+#
+# Hugging Face's SHA-256 for a file is the x-linked-etag header of its resolve URL:
+#   curl -sI https://huggingface.co/<repo>/resolve/main/<file> | grep -i x-linked-etag
+llm_models:
+  - name: gemma-4-12b
+    hf_repo: unsloth/gemma-4-12b-it-GGUF
+    files:
+      - file: gemma-4-12b-it-Q4_K_M.gguf
+        sha256: 0a270ec9fe6b34f4a0d33992b6135117b484ebc4766ab76b51d4ae8c457e4c42
+    ctx: 32768
+    args: --temp 1.0 --top-p 0.95 --top-k 64
+
+  # Code completion (fill-in-the-middle) for llama.vscode / llama.vim, which call /infill;
+  # point them at http://homelab-pro:8080/upstream/qwen3-coder-30b. The -b/-ub/--cache-reuse
+  # values are those of llama.cpp's --fim-qwen-30b-default preset.
+  - name: qwen3-coder-30b
+    hf_repo: ggml-org/Qwen3-Coder-30B-A3B-Instruct-Q8_0-GGUF
+    files:
+      - file: qwen3-coder-30b-a3b-instruct-q8_0.gguf      # 30 GiB
+        sha256: f22993e29318b5b9ec2026f6b65802a5ca99b38ab4844aab83aed8a26ce00ff6
+    ctx: 65536
+    args: >-
+      -b 1024 -ub 1024 --cache-reuse 256
+      --temp 0.7 --top-p 0.8 --top-k 20 --repeat-penalty 1.05
+
+  # - name: gpt-oss-120b
+  #   hf_repo: ggml-org/gpt-oss-120b-GGUF
+  #   files:
+  #     - file: gpt-oss-120b-MXFP4.gguf                    # 59 GiB
+  #       sha256: 582bd40f6886200101f4c4ed9f25f3fe80cc14c86e9e2b37746cd8904a0c622d
+  #   ctx: 131072
+
+# llama-swap groups of models that may stay loaded together, by name. Each group is
+# {members, swap, exclusive, persistent}: swap false lets the members run at once, and
+# exclusive (default true) unloads every other model when one of them loads. Models in no
+# group run one at a time.
+llm_groups:
+  # Chat and code completion side by side, so autocomplete doesn't evict the chat model.
+  coding:
+    swap: false
+    members: [gemma-4-12b, qwen3-coder-30b]
+
+# ComfyUI models, downloaded into /srv/models/comfyui/<dest>.
+# dest starts with the ComfyUI folder: checkpoints/, loras/, vae/, diffusion_models/, ...
+# sha256 is optional.
+#
+#   fuse_qwen_image21_mlp  also write <dest>-fused.safetensors with the MLP's gate_layer and
+#                          proj weights fused into gate_up, which ComfyUI needs to attach the
+#                          many LoRAs trained on that layout (lossless; see
+#                          roles/comfyui/files/scripts/fuse_qwen_image21_mlp.py)
+comfyui_models:
+  - url: https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors
+    dest: checkpoints/sd_xl_base_1.0.safetensors
+    sha256: 31e35c80fc4829d14f90153f4c74cd59c90b779f6afe05a74cd6120b893f7e5b
+
+# Single-file ComfyUI custom nodes, saved to /srv/comfyui/data/custom_nodes. They run as root
+# in the container: pin the URL to a commit and read the file before changing either.
+comfyui_custom_nodes: []
+  # - url: https://huggingface.co/<repo>/resolve/<commit>/<path>.py
+  #   sha256: <sha256>

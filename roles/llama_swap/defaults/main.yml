@@ -13,4 +13,5 @@ llama_server_default_ctx: 16384
 llama_server_default_args: --n-gpu-layers all
 
 llm_models: []
+llm_groups: {}
 hf_token: ""
