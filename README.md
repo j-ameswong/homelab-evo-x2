@@ -44,8 +44,8 @@ not delete its files from `/srv/models`.
   rule that only lets tailnet traffic reach the published ports.
 - **llama_swap**: the `unified-vulkan` image, which bundles llama-server built for Vulkan.
   Models load on first request, one at a time, and unload after `ttl` idle seconds. Each run
-  ends by loading every model in turn and generating one token, then fails listing any that
-  didn't work. Set `llama_swap_smoke_test: false` to skip this.
+  ends by loading every model in turn and generating one token (or one embedding), then fails
+  listing any that didn't work. Set `llama_swap_smoke_test: false` to skip this.
 - **comfyui**: a locally built image with PyTorch from AMD's gfx1151 wheel index
   (ROCm bundled in the wheels). Models live in `/srv/models/comfyui`; custom nodes, inputs,
   outputs and user data in `/srv/comfyui/data`. Workflows in `roles/comfyui/files/workflows`

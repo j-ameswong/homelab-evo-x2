@@ -6,6 +6,7 @@
        '--model /models/' ~ m.hf_repo ~ '/' ~ (m.files[0].file | default(m.files[0])),
        '--ctx-size ' ~ (m.ctx | default(llama_server_default_ctx)),
        llama_server_default_args,
+       '--embedding' if m.embedding | default(false) else '',
        m.args | default(''),
      ] | select | join(' ') %}
 {%   set entry = {'cmd': cmd, 'ttl': m.ttl | default(llama_swap_default_ttl)} %}

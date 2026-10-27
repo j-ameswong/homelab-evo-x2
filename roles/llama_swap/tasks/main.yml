@@ -69,16 +69,17 @@
 
 # llama-swap runs one model at a time, so each request unloads the previous model.
 # Errors are collected so one broken model doesn't hide problems with the rest.
-- name: Load each model and generate one token
+- name: Load each model and generate one token or embedding
   ansible.builtin.uri:
-    url: http://{{ bind_address }}:{{ llama_swap_port }}/v1/chat/completions
+    url: http://{{ bind_address }}:{{ llama_swap_port }}/v1/{{ 'embeddings' if embedding else 'chat/completions' }}
     method: POST
     body_format: json
-    body:
-      model: "{{ item.name }}"
-      messages: [{ role: user, content: Hi }]
-      max_tokens: 1
+    body: >-
+      {{ {'model': item.name, 'input': 'Hi'} if embedding
+         else {'model': item.name, 'messages': [{'role': 'user', 'content': 'Hi'}], 'max_tokens': 1} }}
     timeout: "{{ llama_swap_health_check_timeout }}"
+  vars:
+    embedding: "{{ item.embedding | default(false) }}"
   loop: "{{ llm_models }}"
   loop_control:
     label: "{{ item.name }}"
@@ -86,10 +87,10 @@
   ignore_errors: true
   when: llama_swap_smoke_test
 
-- name: Check every model generated a token
+- name: Check every model responded
   ansible.builtin.assert:
     that: llama_swap_smoke.results | select('failed') | list | length == 0
     fail_msg: >-
       {{ llama_swap_smoke.results | select('failed') | map(attribute='item.name') | join(', ') }}
-      failed to load or generate; see the errors above
+      failed to load or respond; see the errors above
   when: llama_swap_smoke_test
