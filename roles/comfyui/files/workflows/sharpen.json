@@ -1,0 +1,292 @@
+{
+  "id": "63aed83e-fd5b-4281-a06d-a74b2ff3299c",
+  "revision": 0,
+  "last_node_id": 6,
+  "last_link_id": 6,
+  "nodes": [
+    {
+      "id": 1,
+      "type": "LoadImage",
+      "pos": [
+        0,
+        0
+      ],
+      "size": [
+        380,
+        360
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "localized_name": "IMAGE",
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            1,
+            5
+          ]
+        },
+        {
+          "localized_name": "MASK",
+          "name": "MASK",
+          "type": "MASK",
+          "links": [
+            2
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "example.png",
+        "image"
+      ]
+    },
+    {
+      "id": 2,
+      "type": "JoinImageWithAlpha",
+      "pos": [
+        0,
+        400
+      ],
+      "size": [
+        380,
+        46
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "image",
+          "name": "image",
+          "type": "IMAGE",
+          "link": 1
+        },
+        {
+          "localized_name": "alpha",
+          "name": "alpha",
+          "type": "MASK",
+          "link": 2
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "IMAGE",
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            3
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "JoinImageWithAlpha"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 3,
+      "type": "ImageSharpen",
+      "pos": [
+        420,
+        0
+      ],
+      "size": [
+        300,
+        106
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "image",
+          "name": "image",
+          "type": "IMAGE",
+          "link": 3
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "IMAGE",
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            4,
+            6
+          ]
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ImageSharpen"
+      },
+      "widgets_values": [
+        1,
+        1.0,
+        0.1
+      ]
+    },
+    {
+      "id": 4,
+      "type": "SaveImage",
+      "pos": [
+        760,
+        0
+      ],
+      "size": [
+        600,
+        640
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "images",
+          "name": "images",
+          "type": "IMAGE",
+          "link": 4
+        }
+      ],
+      "outputs": [
+        {
+          "localized_name": "images",
+          "name": "images",
+          "type": "IMAGE",
+          "links": null
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "SaveImage"
+      },
+      "widgets_values": [
+        "sharpen"
+      ]
+    },
+    {
+      "id": 5,
+      "type": "ImageCompare",
+      "pos": [
+        1400,
+        0
+      ],
+      "size": [
+        600,
+        640
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "localized_name": "image_a",
+          "name": "image_a",
+          "type": "IMAGE",
+          "link": 5,
+          "shape": 7
+        },
+        {
+          "localized_name": "image_b",
+          "name": "image_b",
+          "type": "IMAGE",
+          "link": 6,
+          "shape": 7
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "Node name for S&R": "ImageCompare"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 6,
+      "type": "MarkdownNote",
+      "pos": [
+        0,
+        490
+      ],
+      "size": [
+        720,
+        300
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "Notes",
+      "properties": {},
+      "widgets_values": [
+        "## Sharpen\n\nUnsharp mask with ComfyUI's ImageSharpen: boosts edge contrast, adds no new detail, no model. Instant at any size.\n\n- **Load Image**: pick or upload the image. Transparency is kept.\n- **Image Sharpen**: **alpha** is the strength, and small values go a long way. 0.05 is subtle, 0.1 clearly crisper, past ~0.2 halos and grain show. **sharpen_radius** 1 sharpens fine detail, 2-3 broader edges (halos sooner); **sigma** softens the blur the mask is built from.\n- For blurry, noisy or compressed images, use seedvr2-upscale.json at scale 1 instead: it restores detail rather than exaggerating what's there.\n- The compare node slides between the input and the result. Images are saved without the prompt or workflow embedded."
+      ]
+    }
+  ],
+  "links": [
+    [
+      1,
+      1,
+      0,
+      2,
+      0,
+      "IMAGE"
+    ],
+    [
+      2,
+      1,
+      1,
+      2,
+      1,
+      "MASK"
+    ],
+    [
+      3,
+      2,
+      0,
+      3,
+      0,
+      "IMAGE"
+    ],
+    [
+      4,
+      3,
+      0,
+      4,
+      0,
+      "IMAGE"
+    ],
+    [
+      5,
+      1,
+      0,
+      5,
+      0,
+      "IMAGE"
+    ],
+    [
+      6,
+      3,
+      0,
+      5,
+      1,
+      "IMAGE"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.75,
+      "offset": [
+        40,
+        40
+      ]
+    }
+  },
+  "version": 0.4
+}

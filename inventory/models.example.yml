@@ -69,6 +69,14 @@ comfyui_models:
     dest: checkpoints/sd_xl_base_1.0.safetensors
     sha256: 31e35c80fc4829d14f90153f4c74cd59c90b779f6afe05a74cd6120b893f7e5b
 
+  # SeedVR2 7B upscaler, for seedvr2-upscale.json
+  - url: https://huggingface.co/Comfy-Org/SeedVR2/resolve/main/diffusion_models/seedvr2_7b_int8_convrot.safetensors
+    dest: diffusion_models/seedvr2_7b_int8_convrot.safetensors             # 8.3 GB
+    sha256: 5aa0d25fc9d35e449b659d0c9a5dcb22e2a4fa04032101b95a39da42b32c1be6
+  - url: https://huggingface.co/Comfy-Org/SeedVR2/resolve/main/vae/seedvr2_ema_vae_fp16.safetensors
+    dest: vae/seedvr2_ema_vae_fp16.safetensors
+    sha256: 20678548f420d98d26f11442d3528f8b8c94e57ee046ef93dbb7633da8612ca1
+
 # Single-file ComfyUI custom nodes, saved to /srv/comfyui/data/custom_nodes. They run as root
 # in the container: pin the URL to a commit and read the file before changing either.
 comfyui_custom_nodes: []
