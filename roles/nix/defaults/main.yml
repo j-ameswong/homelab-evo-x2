@@ -1,0 +1,2 @@
+# Only used for the first install; after that, upgrade with `sudo nix upgrade-nix`.
+nix_version: 2.35.6

@@ -18,7 +18,7 @@ ansible homelab-pro -b -K -m command -a id   # preflight: should print uid=0(roo
 ansible-playbook site.yml -K          # -K prompts for the sudo password
 ```
 
-Run one part with `--tags host|docker|llama_swap|comfyui`. For gated Hugging Face repos, set
+Run one part with `--tags host|docker|llama_swap|comfyui|nix|agents`. For gated Hugging Face repos, set
 `HF_TOKEN` on the machine you run Ansible from.
 
 ## Adding models
@@ -50,3 +50,24 @@ not delete its files from `/srv/models`.
   (ROCm bundled in the wheels). Models live in `/srv/models/comfyui`; custom nodes, inputs,
   outputs and user data in `/srv/comfyui/data`. Workflows in `roles/comfyui/files/workflows`
   appear in ComfyUI's Workflows panel.
+- **nix**: multi-user Nix with flakes, and devenv's binary cache trusted.
+- **agents**: makes the host a coding-agent server. Sets zsh as the login shell, enables
+  lingering, makes the user Tailscale's operator (so T3 Code can use Tailscale Serve), clones
+  [nix-config](https://github.com/j-ameswong/nix-config) to `~/nix-config` and applies its
+  Home Manager config, then installs Claude Code, Codex, OpenCode, t3 and the T3 Code service.
+
+## Coding agents
+
+After the first `--tags nix,agents` run, finish setup over SSH. These logins are per machine
+and not declarative:
+
+```sh
+gh auth login           # git pushes and PRs
+claude                  # then /login
+codex login
+t3 pair --tailscale     # scan the QR code with the T3 Code app
+```
+
+Clone projects into `~/Projects`, where direnv loads each one's dev shell without asking.
+Update the user config with `git -C ~/nix-config pull && home-manager switch --flake ~/nix-config`.
+A timer updates the agent CLIs and t3 at 04:30 nightly, which restarts T3 Code.

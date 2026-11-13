@@ -1,0 +1,79 @@
+# Home Manager (from nix-config) owns the user's tools and dotfiles. This role only does what
+# needs root, then applies it and installs the agent CLIs and the T3 Code service.
+
+- name: Install zsh
+  ansible.builtin.apt:
+    name: zsh
+    lock_timeout: 600
+
+# The Nix installer only hooks interactive shells. Agents and `ssh host cmd` use
+# non-interactive ones, which still read zshenv.
+- name: Put Nix on PATH in every zsh
+  ansible.builtin.blockinfile:
+    path: /etc/zsh/zshenv
+    marker: "# {mark} Nix, managed by Ansible"
+    block: |
+      if [ -e /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh ]; then
+        . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
+      fi
+
+- name: Make zsh the login shell
+  ansible.builtin.user:
+    name: "{{ agents_user }}"
+    shell: /usr/bin/zsh
+
+# Keeps the user's systemd manager, and T3 Code with it, running with nobody logged in.
+- name: Enable lingering
+  ansible.builtin.command: loginctl enable-linger {{ agents_user }}
+  args:
+    creates: /var/lib/systemd/linger/{{ agents_user }}
+
+- name: Read Tailscale's preferences
+  ansible.builtin.command: tailscale debug prefs
+  register: agents_tailscale_prefs
+  changed_when: false
+
+# `t3 pair --tailscale` publishes T3 Code over Tailscale Serve (tailnet-only HTTPS) as this user.
+- name: Let the user configure Tailscale Serve
+  ansible.builtin.command: tailscale set --operator={{ agents_user }}
+  when: (agents_tailscale_prefs.stdout | from_json).OperatorUser | default('') != agents_user
+  changed_when: true
+
+- name: Look up the user's uid
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ agents_user }}"
+
+- name: Apply nix-config as the user
+  become: true
+  become_user: "{{ agents_user }}"
+  vars:
+    agents_uid: "{{ ansible_facts.getent_passwd[agents_user][1] }}"
+  environment:
+    PATH: "/home/{{ agents_user }}/.nix-profile/bin:/home/{{ agents_user }}/.local/bin:/nix/var/nix/profiles/default/bin:/usr/local/bin:/usr/bin:/bin"
+    XDG_RUNTIME_DIR: "/run/user/{{ agents_uid }}"
+    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ agents_uid }}/bus"
+  block:
+    - name: Clone nix-config
+      ansible.builtin.git:
+        repo: "{{ nix_config_repo }}"
+        dest: "{{ nix_config_dir }}"
+        version: main
+        update: false
+
+    - name: Apply Home Manager
+      ansible.builtin.shell: |
+        set -eu
+        profile="$HOME/.local/state/nix/profiles/home-manager"
+        before=$(readlink "$profile" || true)
+        nix run "{{ nix_config_dir }}#home-manager" -- switch -b hm-backup \
+          --flake "{{ nix_config_dir }}#{{ agents_user }}@{{ inventory_hostname }}"
+        [ "$before" = "$(readlink "$profile")" ] || echo "new generation"
+      register: agents_home_manager
+      changed_when: "'new generation' in agents_home_manager.stdout"
+
+    # Logging in to each one stays manual; see the README.
+    - name: Install the agent CLIs, t3 and the T3 Code service
+      ansible.builtin.command: agents-install
+      register: agents_install
+      changed_when: "'installed:' in agents_install.stdout"

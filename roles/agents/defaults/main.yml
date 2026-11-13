@@ -1,0 +1,5 @@
+agents_user: "{{ ansible_user }}"
+
+# Home Manager config shared with the laptop. Cloned once; pull it on the host to update.
+nix_config_repo: https://github.com/j-ameswong/nix-config.git
+nix_config_dir: "/home/{{ agents_user }}/nix-config"
