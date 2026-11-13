@@ -68,6 +68,9 @@ codex login
 t3 pair --tailscale     # scan the QR code with the T3 Code app
 ```
 
+OpenCode's DeepSeek and OpenRouter keys go in `~/.config/secrets/{deepseek,openrouter}.env`
+(`KEY=value`, mode 600), then `t3 service restart`. See nix-config's README.
+
 Clone projects into `~/Projects`, where direnv loads each one's dev shell without asking.
 Update the user config with `git -C ~/nix-config pull && home-manager switch --flake ~/nix-config`.
 A timer updates the agent CLIs and t3 at 04:30 nightly, which restarts T3 Code.
